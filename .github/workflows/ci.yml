@@ -42,7 +42,7 @@ jobs:
 
       # 7. Build Docker image
       - name: Build image
-        run: docker build -t app ./backend
+        run: docker build -t app ./src
 
       # 8. Tag image
       - name: Tag image
