@@ -1,26 +1,62 @@
-      - name: Ensure ECR repository exists
+name: CI - Build & Push to ECR
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Generate image tag
+      - name: Set tag
+        id: vars
+        run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      # 3. Configure AWS credentials
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 4. Verify AWS access (debug step)
+      - name: Verify AWS
+        run: aws sts get-caller-identity
+
+      # 5. Login to ECR
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 6. Ensure repository exists
+      - name: Create ECR repo if needed
         run: |
           aws ecr describe-repositories --repository-names ${{ secrets.ECR_REPOSITORY }} \
           || aws ecr create-repository --repository-name ${{ secrets.ECR_REPOSITORY }}
 
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      # 7. Build Docker image
+      - name: Build image
+        run: docker build -t app ./backend
 
-      - name: Build Docker image
-        run: docker build -t ecommerce-app ./backend
-
-      - name: Tag Docker image
+      # 8. Tag image
+      - name: Tag image
         run: |
-          docker tag ecommerce-app:latest \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG>
+          docker tag app:latest \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG }}
 
-      - name: Push Docker image
+      # 9. Push image
+      - name: Push image
         run: |
           docker push \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG>
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG }}
 
-      - name: Output image URI
+      # 10. Output image URI
+      - name: Show image
         run: |
-          echo "Image pushed:"
-          echo "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outpu>
-
+          echo "IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ steps.vars.outputs.TAG }}"
